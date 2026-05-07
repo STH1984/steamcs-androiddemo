@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Steam CS Demo",
-    "slug": "steamcs-demo",
+    "name": "World Clock",
+    "slug": "world-clock-demo",
     "version": "1.0.0",
     "assetBundlePatterns": [
       "**/*"
