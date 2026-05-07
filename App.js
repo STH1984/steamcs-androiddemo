@@ -3,248 +3,109 @@ import {
   StyleSheet,
   Text,
   View,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  ActivityIndicator,
   SafeAreaView,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
+  StatusBar,
 } from 'react-native';
-import { Anthropic } from '@anthropic-ai/sdk';
 
-export default function App() {
-  const [apiKey, setApiKey] = useState('');
-  const [showApiKeyInput, setShowApiKeyInput] = useState(true);
-  const [email, setEmail] = useState('');
-  const [factors, setFactors] = useState('');
-  const [responses, setResponses] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+const CITIES = [
+  {
+    name: 'Amsterdam',
+    country: 'Netherlands',
+    timezone: 'Europe/Amsterdam',
+    emoji: '🌷',
+    accent: '#FF6B35',
+  },
+  {
+    name: 'Jakarta',
+    country: 'Indonesia',
+    timezone: 'Asia/Jakarta',
+    emoji: '🌴',
+    accent: '#2ECC71',
+  },
+];
 
-  const handleSaveApiKey = () => {
-    if (!apiKey.trim()) {
-      Alert.alert('Error', 'Please enter your Claude API key');
-      return;
-    }
-    setShowApiKeyInput(false);
-  };
+function formatTime(date, timezone) {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: timezone,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).format(date);
+}
 
-  const handleGenerateResponses = async () => {
-    if (!email.trim()) {
-      Alert.alert('Error', 'Please enter a customer email');
-      return;
-    }
+function formatDate(date, timezone) {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: timezone,
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  }).format(date);
+}
 
-    setLoading(true);
-    setError('');
-    setResponses([]);
+function getUtcOffset(timezone) {
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat('en', {
+    timeZone: timezone,
+    timeZoneName: 'shortOffset',
+  }).formatToParts(now);
+  const offset = parts.find((p) => p.type === 'timeZoneName');
+  return offset ? offset.value : '';
+}
 
-    try {
-      const client = new Anthropic({
-        apiKey: apiKey,
-      });
+function ClockCard({ city }) {
+  const [now, setNow] = useState(new Date());
 
-      let prompt = `You are a helpful customer service representative. Generate 2-3 different response options ONLY. Do not include any preamble or explanation text. Each response should:
-- Be professional and friendly
-- Address the customer's concern directly
-- Be solution-focused
-- Be concise (2-3 sentences max)
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
-Format: Start each response on a new line with "1.", "2.", "3.", etc.
-
-Customer Email:
-${email}`;
-
-      if (factors.trim()) {
-        prompt += `
-
-Important Context & Constraints:
-${factors}
-
-Please take these constraints into account when generating your responses.`;
-      }
-
-      const message = await client.messages.create({
-        model: 'claude-opus-4-7',
-        max_tokens: 1024,
-        messages: [
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-      });
-
-      const responseText =
-        message.content[0].type === 'text' ? message.content[0].text : '';
-      const lines = responseText.split('\n').filter((line) => line.trim());
-
-      // Filter to only numbered responses
-      const filteredResponses = lines.filter((line) => /^\d+\.\s/.test(line.trim()));
-
-      if (filteredResponses.length === 0) {
-        setResponses(lines);
-      } else {
-        setResponses(filteredResponses);
-      }
-    } catch (err) {
-      setError(`Error: ${err.message}`);
-      Alert.alert('Error', err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleClear = () => {
-    setEmail('');
-    setFactors('');
-    setResponses([]);
-    setError('');
-  };
-
-  const handleChangeApiKey = () => {
-    setShowApiKeyInput(true);
-    setApiKey('');
-  };
-
-  if (showApiKeyInput) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.apiKeyContainer}>
-          <Text style={styles.title}>🤖 Steam CS Demo</Text>
-          <Text style={styles.subtitle}>AI Customer Service Response Generator</Text>
-
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Enter Claude API Key</Text>
-            <Text style={styles.cardDescription}>
-              Get your API key from{'\n'}
-              <Text style={styles.link}>https://claude.ai/settings/api</Text>
-            </Text>
-
-            <TextInput
-              style={styles.apiKeyInput}
-              placeholder="sk-ant-api03-..."
-              placeholderTextColor="#999"
-              value={apiKey}
-              onChangeText={setApiKey}
-              secureTextEntry={true}
-              editable={true}
-            />
-
-            <TouchableOpacity style={styles.button} onPress={handleSaveApiKey}>
-              <Text style={styles.buttonText}>Continue</Text>
-            </TouchableOpacity>
-
-            <Text style={styles.note}>
-              Your API key is stored locally on this device only. Never shared or stored on servers.
-            </Text>
-          </View>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  const time = formatTime(now, city.timezone);
+  const [hours, minutes, seconds] = time.split(':');
+  const date = formatDate(now, city.timezone);
+  const offset = getUtcOffset(city.timezone);
 
   return (
+    <View style={[styles.card, { borderTopColor: city.accent }]}>
+      <View style={styles.cardHeader}>
+        <Text style={styles.cityEmoji}>{city.emoji}</Text>
+        <View>
+          <Text style={styles.cityName}>{city.name}</Text>
+          <Text style={styles.countryName}>{city.country}</Text>
+        </View>
+        <View style={[styles.offsetBadge, { backgroundColor: city.accent + '22' }]}>
+          <Text style={[styles.offsetText, { color: city.accent }]}>{offset}</Text>
+        </View>
+      </View>
+
+      <View style={styles.timeRow}>
+        <Text style={styles.timeDigits}>{hours}</Text>
+        <Text style={styles.timeSeparator}>:</Text>
+        <Text style={styles.timeDigits}>{minutes}</Text>
+        <Text style={styles.timeSeparator}>:</Text>
+        <Text style={[styles.timeDigits, styles.secondsDigits]}>{seconds}</Text>
+      </View>
+
+      <Text style={styles.dateText}>{date}</Text>
+    </View>
+  );
+}
+
+export default function App() {
+  return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.flex}
-      >
-        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-          <View style={styles.header}>
-            <Text style={styles.headerTitle}>🤖 Steam CS Demo</Text>
-            <Text style={styles.headerSubtitle}>AI Customer Service Responses</Text>
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Customer Email</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter customer email..."
-              placeholderTextColor="#999"
-              value={email}
-              onChangeText={setEmail}
-              multiline
-              numberOfLines={4}
-              editable={!loading}
-            />
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Context & Constraints (Optional)</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g., issue no refund, customer is VIP..."
-              placeholderTextColor="#999"
-              value={factors}
-              onChangeText={setFactors}
-              multiline
-              numberOfLines={3}
-              editable={!loading}
-            />
-          </View>
-
-          <View style={styles.buttonContainer}>
-            <TouchableOpacity
-              style={[styles.button, loading && styles.buttonDisabled]}
-              onPress={handleGenerateResponses}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={styles.buttonText}>Generate Responses</Text>
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.secondaryButton}
-              onPress={handleClear}
-              disabled={loading}
-            >
-              <Text style={styles.secondaryButtonText}>Clear</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.secondaryButton}
-              onPress={handleChangeApiKey}
-              disabled={loading}
-            >
-              <Text style={styles.secondaryButtonText}>Change API Key</Text>
-            </TouchableOpacity>
-          </View>
-
-          {error ? (
-            <View style={styles.errorBox}>
-              <Text style={styles.errorText}>{error}</Text>
-            </View>
-          ) : null}
-
-          {responses.length > 0 ? (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>AI-Suggested Responses</Text>
-              {responses.map((response, index) => (
-                <View key={index} style={styles.responseItem}>
-                  <Text style={styles.responseLabel}>Option {index + 1}</Text>
-                  <Text style={styles.responseText}>
-                    {response.replace(/^\d+\.\s*/, '')}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          ) : null}
-
-          {!loading && responses.length === 0 && !error ? (
-            <View style={styles.placeholder}>
-              <Text style={styles.placeholderText}>
-                Generated responses will appear here
-              </Text>
-            </View>
-          ) : null}
-        </ScrollView>
-      </KeyboardAvoidingView>
+      <StatusBar barStyle="light-content" backgroundColor="#1a1a2e" />
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>World Clock</Text>
+        <Text style={styles.headerSubtitle}>Live time across the globe</Text>
+      </View>
+      <View style={styles.cardsContainer}>
+        {CITIES.map((city) => (
+          <ClockCard key={city.name} city={city} />
+        ))}
+      </View>
     </SafeAreaView>
   );
 }
@@ -252,178 +113,94 @@ Please take these constraints into account when generating your responses.`;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  flex: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-    padding: 16,
+    backgroundColor: '#1a1a2e',
   },
   header: {
-    marginBottom: 24,
-    paddingTop: 16,
+    paddingHorizontal: 24,
+    paddingTop: 32,
+    paddingBottom: 24,
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 34,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#ffffff',
+    letterSpacing: 0.5,
   },
   headerSubtitle: {
-    fontSize: 16,
-    color: '#666',
+    fontSize: 15,
+    color: '#8888aa',
     marginTop: 4,
   },
-  section: {
-    marginBottom: 20,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 14,
-    color: '#333',
-    minHeight: 100,
-    textAlignVertical: 'top',
-  },
-  buttonContainer: {
-    marginVertical: 16,
-  },
-  button: {
-    backgroundColor: '#667eea',
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  secondaryButton: {
-    backgroundColor: '#f0f0f0',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  secondaryButtonText: {
-    color: '#333',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  responseItem: {
-    backgroundColor: '#f8f9ff',
-    borderLeftWidth: 4,
-    borderLeftColor: '#667eea',
-    padding: 12,
-    marginVertical: 8,
-    borderRadius: 8,
-  },
-  responseLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#667eea',
-    marginBottom: 4,
-  },
-  responseText: {
-    fontSize: 14,
-    color: '#333',
-    lineHeight: 20,
-  },
-  errorBox: {
-    backgroundColor: '#ffe6e6',
-    borderLeftWidth: 4,
-    borderLeftColor: '#d32f2f',
-    padding: 12,
-    borderRadius: 8,
-    marginVertical: 16,
-  },
-  errorText: {
-    color: '#c62828',
-    fontSize: 14,
-  },
-  placeholder: {
-    paddingVertical: 32,
-    alignItems: 'center',
-  },
-  placeholderText: {
-    fontSize: 14,
-    color: '#999',
-    fontStyle: 'italic',
-  },
-  apiKeyContainer: {
+  cardsContainer: {
     flex: 1,
-    justifyContent: 'center',
-    padding: 16,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#667eea',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 32,
-    textAlign: 'center',
+    paddingHorizontal: 16,
+    gap: 16,
   },
   card: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 20,
+    backgroundColor: '#16213e',
+    borderRadius: 20,
+    padding: 24,
+    borderTopWidth: 4,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
     shadowRadius: 8,
-    elevation: 4,
+    elevation: 8,
   },
-  cardTitle: {
-    fontSize: 18,
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    gap: 12,
+  },
+  cityEmoji: {
+    fontSize: 32,
+  },
+  cityName: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  countryName: {
+    fontSize: 13,
+    color: '#8888aa',
+    marginTop: 2,
+  },
+  offsetBadge: {
+    marginLeft: 'auto',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
+  offsetText: {
+    fontSize: 13,
     fontWeight: '600',
-    color: '#333',
-    marginBottom: 8,
   },
-  cardDescription: {
+  timeRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginBottom: 12,
+  },
+  timeDigits: {
+    fontSize: 56,
+    fontWeight: '200',
+    color: '#ffffff',
+    fontVariant: ['tabular-nums'],
+    letterSpacing: -1,
+  },
+  timeSeparator: {
+    fontSize: 48,
+    fontWeight: '200',
+    color: '#555577',
+    marginHorizontal: 2,
+    lineHeight: 56,
+  },
+  secondsDigits: {
+    fontSize: 36,
+    color: '#8888aa',
+  },
+  dateText: {
     fontSize: 14,
-    color: '#666',
-    marginBottom: 16,
-  },
-  link: {
-    color: '#667eea',
-    textDecorationLine: 'underline',
-  },
-  apiKeyInput: {
-    backgroundColor: '#f5f5f5',
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 14,
-    color: '#333',
-    marginBottom: 16,
-  },
-  note: {
-    fontSize: 12,
-    color: '#999',
-    marginTop: 12,
-    fontStyle: 'italic',
+    color: '#8888aa',
   },
 });
